@@ -18,26 +18,68 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Instalar Newman
+      - name: Instalar Newman y reportes
         run: npm install -g newman newman-reporter-html newman-reporter-htmlextra
 
-      - name: Ejecutar las pruebas de newman
-        run: npx newman run Uvilor_reporte.postman_collection.json --environment uvilor-labs.postman_environment.json --reporters cli,html --reporter-html-export newman/newman_report.html -n 2 -r htmlextra
-        
-      - name: Guardar reporte en el repositorio
-        run: |
-          git config --global user.email "github-actions@github.com"
-          git config --global user.name "GitHub Actions"
-          git add newman/newman_report.html
-          git commit -m "Agregando reporte Newman - $(date '+%Y-%m-%d %H:%M:%S')" || echo "No hay cambios para hacer commit"
-          git push origin main || echo "No hay cambios para hacer push"
+      - name: Crear carpeta para reportes
+        run: mkdir -p newman
 
-      - name: Configurara credenciales de aws
+      - name: Correr newman
+        env:
+          USERS_ARRAY: ${{ secrets.USERS_ARRAY }}
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+
+          printf "%s" "${USERS_ARRAY}" > users.json
+
+          echo "Verificando contenido de users.json:"
+          cat users.json
+          jq . users.json || { echo "Error: JSON inválido"; exit 1; }
+
+          jq -c '.[]' users.json | while read -r user; do
+            ctid=$(echo "$user" | jq -r '.ctid')
+            username=$(echo "$user" | jq -r '.username')
+
+            echo "Ejecutando Newman para usuario: $username, CTID: $ctid"
+
+            report_dir="newman/${ctid}/${DATE}"
+            mkdir -p "$report_dir"
+            report_html="${report_dir}/newman_report.html"
+            report_htmlextra="${report_dir}/newman_report_extra.html"
+
+            newman run Uvilor_reporte.postman_collection.json \
+              --environment uvilor-labs.postman_environment.json \
+              --global-var "credentials=$user" \
+              --reporters cli,html,htmlextra \
+              --reporter-html-export "$report_html" \
+              --reporter-htmlextra-export "$report_htmlextra" -n 1
+
+            if [[ -f "$report_html" ]]; then
+              echo "✅ Reporte HTML generado: $report_html"
+            else
+              echo "❌ Error: No se generó el reporte HTML en $report_html"
+              exit 1
+            fi
+
+            if [[ -f "$report_htmlextra" ]]; then
+              echo "✅ Reporte HTML Extra generado: $report_htmlextra"
+            else
+              echo "❌ Error: No se generó el reporte HTML Extra en $report_htmlextra"
+              exit 1
+            fi
+          done
+
+      - name: Configurar credenciales de AWS
         uses: aws-actions/configure-aws-credentials@v3
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-      
-      - name: Upload report to S3
-        run: aws s3 cp newman/ s3://newman-uvilor/ --recursive
+
+      - name: Subir reportes a S3
+        run: |
+          echo "Verificando contenido de la carpeta newman/"
+          ls -R newman/
+
+          echo "Subiendo reportes a S3..."
+          aws s3 cp newman/ s3://newman-uvilor/ --recursive
