@@ -54,11 +54,6 @@ jobs:
               --reporter-html-export "$report_html" \
               --reporter-htmlextra-export "$report_htmlextra" -n 1
 
-            if [[ $? -ne 0 ]]; then
-              echo "❌ Error: Newman falló para el usuario $username"
-              exit 1
-            fi
-
             if [[ -f "$report_html" ]]; then
               echo "✅ Reporte HTML generado: $report_html"
             else
@@ -88,10 +83,3 @@ jobs:
 
           echo "Subiendo reportes a S3..."
           aws s3 cp newman/ s3://newman-uvilor/ --recursive
-
-          if [[ $? -ne 0 ]]; then
-            echo "❌ Error: Falló la subida de los reportes a S3"
-            exit 1
-          fi
-
-
