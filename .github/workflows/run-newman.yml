@@ -85,8 +85,13 @@ jobs:
           for dir in newman/*; do
             if [[ -d "$dir" ]]; then
               ctid=$(basename "$dir")
-              echo "Subiendo reportes del usuario $ctid..."
-              aws s3 cp "$dir" "s3://newman-uvilor/$ctid/" --recursive
+              for datedir in "$dir"/*; do
+                if [[ -d "$datedir" ]]; then
+                  datefolder=$(basename "$datedir")
+                  echo "Subiendo reportes del usuario $ctid para fecha $datefolder..."
+                  aws s3 cp "$datedir" "s3://newman-uvilor/$ctid/$datefolder/" --recursive
+                fi
+              done
             fi
           done
 
