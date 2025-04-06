@@ -81,7 +81,12 @@ jobs:
           echo "Verificando contenido de la carpeta newman/"
           ls -R newman/
 
-          DATE=$(date +'%Y-%m-%d')  # También podrías usar '%Y-%m-%d_%H-%M' para granularidad horaria
+          echo "Subiendo reportes a S3 respetando estructura por usuario y fecha..."
+          for dir in newman/*; do
+            if [[ -d "$dir" ]]; then
+              ctid=$(basename "$dir")
+              echo "Subiendo reportes del usuario $ctid..."
+              aws s3 cp "$dir" "s3://newman-uvilor/$ctid/" --recursive
+            fi
+          done
 
-          echo "Subiendo reportes a S3 con carpeta por fecha $DATE..."
-          aws s3 cp newman/ s3://newman-uvilor/reports/$DATE/ --recursive
